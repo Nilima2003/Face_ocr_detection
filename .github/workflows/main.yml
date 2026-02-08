@@ -1,47 +1,701 @@
-# minimal-ocr-build.yml
-name: Minimal OCR Face Build
+name: Build OCR Face Monitor EXE
 
-on: [push, workflow_dispatch]
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+        - debug
+        - release
+        - portable
+
+env:
+  PROJECT_NAME: "OCR_Face_Monitor"
+  PYTHON_VERSION: "3.10"
 
 jobs:
-  build:
+  setup:
     runs-on: windows-latest
+    outputs:
+      python-version: ${{ steps.python-version.outputs.version }}
+      build-type: ${{ github.event.inputs.build_type || 'release' }}
     
     steps:
-    - uses: actions/checkout@v4
-    
-    - uses: actions/setup-python@v5
+    - name: Checkout repository
+      uses: actions/checkout@v4
       with:
-        python-version: "3.10"
-        cache: 'pip'
-    
-    - name: Install Essentials
+        fetch-depth: 0
+        submodules: recursive
+
+    - name: Get Python version
+      id: python-version
       run: |
-        choco install cmake -y
-        pip install --upgrade pip setuptools wheel
-        
-        # Minimal dependencies
-        pip install opencv-python numpy pandas pillow
-        pip install face-recognition dlib
-        pip install pytesseract easyocr
-        pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-        pip install pyqt5 pyinstaller
+        $version = "${{ env.PYTHON_VERSION }}"
+        echo "version=$version" >> $env:GITHUB_OUTPUT
+
+  build:
+    runs-on: windows-latest
+    needs: setup
+    strategy:
+      matrix:
+        python-version: [${{ needs.setup.outputs.python-version }}]
     
-    - name: Build EXE
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+        cache-dependency-path: '**/requirements*.txt'
+
+    - name: Install Windows Build Tools
+      run: |
+        choco install cmake -y --no-progress
+        choco install git -y --no-progress
+        choco install upx -y --no-progress
+        
+        # Install Visual C++ Build Tools
+        $vcRedistUrl = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+        $vcRedistPath = "$env:TEMP\vc_redist.x64.exe"
+        Invoke-WebRequest -Uri $vcRedistUrl -OutFile $vcRedistPath
+        Start-Process -FilePath $vcRedistPath -ArgumentList "/install", "/quiet", "/norestart" -Wait -NoNewWindow
+
+    - name: Create Virtual Environment
+      run: |
+        python -m venv venv
+        .\venv\Scripts\activate
+
+    - name: Upgrade pip and setuptools
+      run: |
+        python -m pip install --upgrade pip wheel setuptools
+        pip install --upgrade setuptools
+
+    - name: Cache pip packages
+      uses: actions/cache@v4
+      with:
+        path: ~\AppData\Local\pip\Cache
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install Core Dependencies
+      run: |
+        .\venv\Scripts\activate
+        pip install cmake
+        pip install numpy==1.24.3
+        pip install scipy==1.11.3
+        pip install cython
+
+    - name: Install Computer Vision Dependencies
+      run: |
+        .\venv\Scripts\activate
+        pip install opencv-python==4.8.1.78
+        pip install opencv-contrib-python==4.8.1.78
+        pip install pillow==10.1.0
+        pip install scikit-image==0.21.0
+        pip install imutils==0.5.4
+
+    - name: Install Face Recognition Dependencies
+      run: |
+        .\venv\Scripts\activate
+        pip install dlib==19.24.2
+        pip install face-recognition==1.3.0
+        pip install face-recognition-models==0.3.0
+        pip install deepface==0.0.79
+        pip install retina-face==0.0.14
+
+    - name: Install OCR Dependencies
+      run: |
+        .\venv\Scripts\activate
+        pip install pytesseract==0.3.10
+        pip install easyocr==1.7.1
+        pip install paddleocr==2.7.0.3
+        pip install keras-ocr==0.9.3
+        pip install pdf2image==1.16.3
+        pip install PyPDF2==3.0.1
+        pip install pypdfium2==4.18.0
+
+    - name: Install ML/DL Dependencies
+      run: |
+        .\venv\Scripts\activate
+        pip install torch==2.1.0 torchvision==0.16.0 torchaudio==2.1.0 --index-url https://download.pytorch.org/whl/cpu
+        pip install tensorflow==2.13.0
+        pip install onnx==1.14.1
+        pip install onnxruntime==1.16.0
+        pip install scikit-learn==1.3.0
+        pip install transformers==4.35.0
+        pip install ultralytics==8.0.196
+
+    - name: Install GUI Dependencies
+      run: |
+        .\venv\Scripts\activate
+        pip install PyQt5==5.15.9
+        pip install PyQt5-Qt5==5.15.2
+        pip install PyQt5-sip==12.13.0
+        pip install pyqtgraph==0.13.3
+        pip install qdarkstyle==3.2.3
+        pip install qt-material==2.14
+        pip install qtpy==2.4.0
+
+    - name: Install Utility Dependencies
+      run: |
+        .\venv\Scripts\activate
+        pip install pandas==2.1.3
+        pip install matplotlib==3.8.0
+        pip install seaborn==0.13.0
+        pip install plotly==5.17.0
+        pip install rich==13.7.0
+        pip install tqdm==4.66.1
+        pip install loguru==0.7.2
+        pip install pyyaml==6.0.1
+        pip install configparser==6.0.0
+        pip install python-dotenv==1.0.0
+
+    - name: Install Networking Dependencies
+      run: |
+        .\venv\Scripts\activate
+        pip install requests==2.31.0
+        pip install aiohttp==3.9.1
+        pip install websockets==12.0
+        pip install flask==3.0.0
+        pip install fastapi==0.104.1
+        pip install uvicorn==0.24.0
+
+    - name: Install Project Requirements
+      run: |
+        .\venv\Scripts\activate
+        if (Test-Path "requirements.txt") {
+          pip install -r requirements.txt
+        }
+        pip install pyinstaller==5.13.2
+        pip install auto-py-to-exe==2.32.0
+
+    - name: Create Resource Path Helper
+      run: |
+        $resourceHelper = @"
+import sys
+import os
+
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    
+    return os.path.join(base_path, relative_path)
+
+def get_resource_folder():
+    """ Get the resource folder path """
+    return resource_path("resources")
+
+def ensure_resource_folder():
+    """ Ensure resource folder exists """
+    resource_dir = get_resource_folder()
+    if not os.path.exists(resource_dir):
+        os.makedirs(resource_dir, exist_ok=True)
+    return resource_dir
+"@
+        Set-Content -Path "resource_helper.py" -Value $resourceHelper
+
+    - name: Create PyInstaller Hook Files
+      run: |
+        # Hook for face_recognition
+        $faceHook = @"
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+
+datas = collect_data_files('face_recognition_models')
+hiddenimports = [
+    'pkg_resources',
+    'setuptools',
+    'face_recognition_models',
+]
+
+# Include dlib models
+datas += collect_data_files('dlib')
+"@
+        Set-Content -Path "hook-face_recognition.py" -Value $faceHook
+
+        # Hook for torch
+        $torchHook = @"
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+
+datas = collect_data_files('torch')
+hiddenimports = [
+    'torch._C',
+    'torch._dl',
+    'torch._VF',
+    'torch.backends.cudnn',
+    'torch.nn.modules',
+    'torch.optim',
+    'torch.utils.data',
+    'torchvision',
+    'torchvision.models',
+]
+
+# Exclude problematic modules
+excludedimports = [
+    'torch.distributed',
+    'torch.utils.tensorboard',
+    'tensorboard',
+]
+"@
+        Set-Content -Path "hook-torch.py" -Value $torchHook
+
+    - name: Create PyInstaller Spec File
+      run: |
+        $specContent = @"
+# -*- mode: python ; coding: utf-8 -*-
+block_cipher = None
+
+import sys
+import os
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules, get_package_paths
+
+# ===== Analysis =====
+a = Analysis(
+    ['Main.py'],
+    pathex=[],
+    binaries=[],
+    datas=[
+        # Add your data files here
+        ('cameras.csv', '.'),
+        ('config.ini', '.'),
+        ('requirements.txt', '.'),
+        ('*.pkl', 'models'),
+        ('*.pt', 'models'),
+        ('*.onnx', 'models'),
+        ('*.pth', 'models'),
+        ('images/*.png', 'images'),
+        ('images/*.jpg', 'images'),
+        ('images/*.ico', 'images'),
+        ('fonts/*.ttf', 'fonts'),
+        ('fonts/*.otf', 'fonts'),
+        ('sounds/*.wav', 'sounds'),
+        ('sounds/*.mp3', 'sounds'),
+        ('ui/*.ui', 'ui'),
+        ('ui/*.qrc', 'ui'),
+    ],
+    hiddenimports=[
+        # Core Python
+        'pkg_resources',
+        'setuptools',
+        'packaging',
+        'packaging.version',
+        'packaging.specifiers',
+        'packaging.requirements',
+        
+        # Computer Vision
+        'cv2',
+        'cv2.data',
+        'cv2.dnn',
+        'PIL',
+        'PIL._imaging',
+        'PIL.Image',
+        'PIL.ImageFilter',
+        
+        # Face Recognition
+        'face_recognition_models',
+        'dlib',
+        
+        # OCR
+        'pytesseract',
+        'easyocr',
+        'paddleocr',
+        'keras_ocr',
+        
+        # ML/DL
+        'torch',
+        'torch._C',
+        'torch._dl',
+        'torch._VF',
+        'torch.nn',
+        'torch.nn.modules',
+        'torch.optim',
+        'torch.utils',
+        'torchvision',
+        'torchvision.models',
+        'tensorflow',
+        'tensorflow._api.v2',
+        'sklearn',
+        'sklearn.tree',
+        'sklearn.ensemble',
+        'sklearn.neighbors',
+        'sklearn.utils._weight_vector',
+        'sklearn.neighbors._partition_nodes',
+        
+        # GUI
+        'PyQt5',
+        'PyQt5.QtCore',
+        'PyQt5.QtGui',
+        'PyQt5.QtWidgets',
+        'PyQt5.uic',
+        'pyqtgraph',
+        'qdarkstyle',
+        
+        # Utilities
+        'numpy',
+        'numpy.core',
+        'numpy.lib',
+        'pandas',
+        'pandas._libs',
+        'scipy',
+        'scipy.special',
+        'scipy.special._ufuncs_cxx',
+        'matplotlib',
+        'matplotlib.backends.backend_qt5agg',
+        
+        # Networking
+        'requests',
+        'urllib3',
+        'urllib3.util',
+        'ssl',
+        'certifi',
+        
+        # Logging
+        'loguru',
+        'logging.handlers',
+    ],
+    hookspath=['.'],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=[
+        # Exclude to reduce size
+        'tensorboard',
+        'torch.distributed',
+        'torch.utils.tensorboard',
+        'test',
+        'tests',
+        'unittest',
+        'pytest',
+        'notebook',
+        'jupyter',
+        'ipython',
+        'ipykernel',
+        'tkinter',
+        'wx',
+        'pygame',
+    ],
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    cipher=block_cipher,
+    noarchive=False,
+)
+
+# ===== Collect Additional Data =====
+# Collect data from packages
+def collect_all_data(package_name):
+    try:
+        pkg_path = get_package_paths(package_name)[0]
+        if os.path.exists(pkg_path):
+            datas = collect_data_files(package_name)
+            a.datas += datas
+            print(f"Collected data from {package_name}")
+    except:
+        pass
+
+# Collect data from important packages
+collect_all_data('face_recognition_models')
+collect_all_data('dlib')
+collect_all_data('torch')
+collect_all_data('torchvision')
+collect_all_data('cv2')
+collect_all_data('sklearn')
+collect_all_data('numpy')
+collect_all_data('pytesseract')
+
+# ===== Pyz =====
+pyz = PEX(a.pure, a.zipped_data, cipher=block_cipher)
+
+# ===== EXE Configuration =====
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.datas,
+    [],
+    name='${{ env.PROJECT_NAME }}',
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=${{ needs.setup.outputs.build-type == 'debug' && 'True' || 'False' }},
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+    icon='icon.ico' if os.path.exists('icon.ico') else None,
+    version_file='version.txt' if os.path.exists('version.txt') else None,
+)
+"@
+        Set-Content -Path "${{ env.PROJECT_NAME }}.spec" -Value $specContent
+
+    - name: Create Version File
+      run: |
+        $versionContent = @"
+VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers=(${{ github.run_number }}, 0, 0, 0),
+    prodvers=(${{ github.run_number }}, 0, 0, 0),
+    mask=0x3f,
+    flags=0x0,
+    OS=0x40004,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0, 0)
+  ),
+  kids=[
+    StringFileInfo([
+      StringTable(
+        u'040904B0',
+        [StringStruct(u'CompanyName', u'Your Company'),
+        StringStruct(u'FileDescription', u'OCR Face Monitoring Application'),
+        StringStruct(u'FileVersion', u'${{ github.run_number }}.0.0.0'),
+        StringStruct(u'InternalName', u'${{ env.PROJECT_NAME }}'),
+        StringStruct(u'LegalCopyright', u'Copyright © 2024'),
+        StringStruct(u'OriginalFilename', u'${{ env.PROJECT_NAME }}.exe'),
+        StringStruct(u'ProductName', u'OCR Face Monitor'),
+        StringStruct(u'ProductVersion', u'${{ github.run_number }}.0.0.0')])
+    ]),
+    VarFileInfo([VarStruct(u'Translation', [1033, 1200])])
+  ]
+)
+"@
+        Set-Content -Path "version.txt" -Value $versionContent
+
+    - name: Build Executable
       shell: cmd
       run: |
-        pyinstaller ^
-         --onefile ^
-         --noconsole ^
-         --name OCRApp ^
-         --add-data "cameras.csv;." ^
-         --hidden-import pkg_resources ^
-         --hidden-import cv2 ^
-         --hidden-import torch ^
-         --clean ^
-         Main.py
-    
-    - uses: actions/upload-artifact@v4
+        .\venv\Scripts\activate
+        echo "Building ${{ env.PROJECT_NAME }}..."
+        
+        if "${{ needs.setup.outputs.build-type }}" == "debug" (
+          echo "Building DEBUG version with console..."
+          pyinstaller ^
+           --onedir ^
+           --console ^
+           --name ${{ env.PROJECT_NAME }}_debug ^
+           --add-data "cameras.csv;." ^
+           --add-data "*.py;." ^
+           --hidden-import pkg_resources ^
+           --hidden-import setuptools ^
+           --hidden-import face_recognition_models ^
+           --debug all ^
+           --clean ^
+           Main.py
+        ) else (
+          echo "Building RELEASE version..."
+          pyinstaller ^
+           --onefile ^
+           --noconsole ^
+           --name ${{ env.PROJECT_NAME }} ^
+           --add-data "cameras.csv;." ^
+           --add-data "*.py;." ^
+           --hidden-import pkg_resources ^
+           --hidden-import setuptools ^
+           --hidden-import face_recognition_models ^
+           --hidden-import cv2 ^
+           --hidden-import torch ^
+           --hidden-import sklearn.utils._weight_vector ^
+           --collect-all face_recognition_models ^
+           --clean ^
+           --upx-dir "C:\ProgramData\chocolatey\lib\upx\tools" ^
+           Main.py
+        )
+
+    - name: Create Portable Package
+      if: needs.setup.outputs.build-type == 'portable'
+      run: |
+        .\venv\Scripts\activate
+        echo "Creating portable package..."
+        
+        $portableDir = "dist\${{ env.PROJECT_NAME }}_Portable"
+        New-Item -ItemType Directory -Force -Path $portableDir
+        
+        # Copy EXE
+        Copy-Item "dist\${{ env.PROJECT_NAME }}.exe" -Destination "$portableDir\"
+        
+        # Create directories
+        New-Item -ItemType Directory -Force -Path "$portableDir\config"
+        New-Item -ItemType Directory -Force -Path "$portableDir\logs"
+        New-Item -ItemType Directory -Force -Path "$portableDir\data"
+        New-Item -ItemType Directory -Force -Path "$portableDir\models"
+        New-Item -ItemType Directory -Force -Path "$portableDir\plugins"
+        
+        # Copy config files
+        Copy-Item "*.ini" -Destination "$portableDir\config\" -ErrorAction SilentlyContinue
+        Copy-Item "*.json" -Destination "$portableDir\config\" -ErrorAction SilentlyContinue
+        Copy-Item "*.yaml" -Destination "$portableDir\config\" -ErrorAction SilentlyContinue
+        
+        # Create run script
+        $runScript = @"
+@echo off
+echo Starting ${{ env.PROJECT_NAME }}...
+echo.
+${{ env.PROJECT_NAME }}.exe
+pause
+"@
+        Set-Content -Path "$portableDir\run.bat" -Value $runScript
+        
+        # Create README
+        $readme = @"
+# ${{ env.PROJECT_NAME }} Portable
+
+## System Requirements
+- Windows 10/11 64-bit
+- 8GB RAM minimum
+- 2GB free disk space
+- Webcam (for face detection)
+
+## Installation
+1. Extract this folder anywhere
+2. Run 'run.bat' or double-click '${{ env.PROJECT_NAME }}.exe'
+
+## Configuration
+- Edit files in the 'config' folder
+- Place models in the 'models' folder
+- Logs are saved in the 'logs' folder
+
+## Support
+Contact: support@example.com
+"@
+        Set-Content -Path "$portableDir\README.txt" -Value $readme
+
+    - name: Verify Build
+      run: |
+        echo "=== Build Verification ==="
+        
+        if "${{ needs.setup.outputs.build-type }}" == "debug" (
+          $exePath = "dist\${{ env.PROJECT_NAME }}_debug"
+          if (Test-Path $exePath) {
+            echo "✓ DEBUG build created at: $exePath"
+            Get-ChildItem $exePath | Select-Object Name, Length | Format-Table
+          } else {
+            echo "✗ DEBUG build failed"
+            exit 1
+          }
+        ) else (
+          $exePath = "dist\${{ env.PROJECT_NAME }}.exe"
+          if (Test-Path $exePath) {
+            echo "✓ RELEASE build created at: $exePath"
+            $fileInfo = Get-Item $exePath
+            echo "File size: $([math]::Round($fileInfo.Length/1MB, 2)) MB"
+            echo "Created: $($fileInfo.CreationTime)"
+          } else {
+            echo "✗ RELEASE build failed"
+            exit 1
+          }
+        )
+        
+        echo "=== Directory Structure ==="
+        Get-ChildItem -Path "dist" -Recurse | Select-Object FullName | Format-Table -AutoSize
+
+    - name: Run Basic Tests
+      run: |
+        echo "=== Running Basic Tests ==="
+        
+        # Test Python imports
+        .\venv\Scripts\activate
+        python -c "
+import sys
+print('Python:', sys.version)
+try:
+    import cv2
+    print('✓ OpenCV:', cv2.__version__)
+except: print('✗ OpenCV failed')
+try:
+    import torch
+    print('✓ PyTorch:', torch.__version__)
+except: print('✗ PyTorch failed')
+try:
+    import face_recognition
+    print('✓ Face Recognition loaded')
+except: print('✗ Face Recognition failed')
+try:
+    import pytesseract
+    print('✓ Tesseract loaded')
+except: print('✗ Tesseract failed')
+        "
+        
+        # Test resource helper
+        if (Test-Path "resource_helper.py") {
+          python -c "
+import sys
+sys.path.append('.')
+from resource_helper import resource_path
+print('✓ Resource helper working')
+print('Sample path:', resource_path('cameras.csv'))
+          "
+        }
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
       with:
-        name: OCR-App
-        path: dist/OCRApp.exe
+        name: ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.build-type }}-${{ github.run_number }}
+        path: |
+          dist/${{ env.PROJECT_NAME }}.exe
+          dist/${{ env.PROJECT_NAME }}_debug/
+          dist/${{ env.PROJECT_NAME }}_Portable/
+          build/
+          *.spec
+          requirements.txt
+        if-no-files-found: error
+        retention-days: 7
+
+    - name: Create Release (on tag)
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          dist/${{ env.PROJECT_NAME }}.exe
+          dist/${{ env.PROJECT_NAME }}_Portable.zip
+        body: |
+          # ${{ env.PROJECT_NAME }} v${{ github.ref_name }}
+          
+          ## What's New
+          - Automated build from GitHub Actions
+          - Includes all dependencies
+          - Portable version available
+          
+          ## Installation
+          1. Download the EXE file
+          2. Run it on Windows 10/11
+          3. Make sure cameras.csv is in the same folder
+          
+          ## Build Info
+          - Python: ${{ env.PYTHON_VERSION }}
+          - Build Number: ${{ github.run_number }}
+          - Commit: ${{ github.sha }}
+        draft: false
+        prerelease: false
+
+  notify:
+    needs: build
+    runs-on: windows-latest
+    if: always()
+    
+    steps:
+    - name: Build Status
+      run: |
+        if "${{ needs.build.result }}" == "success" (
+          echo "✅ Build succeeded!"
+          echo "::notice title=Build Success::Build completed successfully"
+        ) else (
+          echo "❌ Build failed!"
+          echo "::error title=Build Failed::Build failed with status: ${{ needs.build.result }}"
+        )
