@@ -1,0 +1,16 @@
+Cam_1,rtsp://admin:admin$123@192.168.1.245:554/cam/realmonitor?channel=1&subtype=1
+Cam_2,rtsp://admin:admin$123@192.168.1.245:554/cam/realmonitor?channel=2&subtype=1
+Cam_3,rtsp://admin:admin$123@192.168.1.245:554/cam/realmonitor?channel=3&subtype=1
+Cam_4,rtsp://admin:admin$123@192.168.1.245:554/cam/realmonitor?channel=4&subtype=1
+Cam_5,rtsp://admin:admin$123@192.168.1.245:554/cam/realmonitor?channel=5&subtype=1
+Cam_6,rtsp://admin:admin$123@192.168.1.245:554/cam/realmonitor?channel=6&subtype=1
+Cam_7,rtsp://admin:admin$123@192.168.1.245:554/cam/realmonitor?channel=7&subtype=1
+Cam_8,rtsp://admin:admin$123@192.168.1.245:554/cam/realmonitor?channel=8&subtype=1
+Cam_9,rtsp://admin:admin$123@192.168.1.245:554/cam/realmonitor?channel=9&subtype=1
+Cam_10,rtsp://admin:admin$123@192.168.1.245:554/cam/realmonitor?channel=10&subtype=1
+Cam_11,rtsp://admin:admin$123@192.168.1.245:554/cam/realmonitor?channel=13&subtype=1
+Cam_12,rtsp://admin:admin$123@192.168.1.245:554/cam/realmonitor?channel=14&subtype=1
+Cam_13,rtsp://admin:admin$123@192.168.1.245:554/cam/realmonitor?channel=15&subtype=1
+Cam_14,rtsp://admin:admin$123@192.168.1.245:554/cam/realmonitor?channel=16&subtype=1
+Cam_15,rtsp://admin:admin$123@192.168.1.245:554/cam/realmonitor?channel=17&subtype=1
+Cam_16,rtsp://admin:admin$123@192.168.1.245:554/cam/realmonitor?channel=18&subtype=1

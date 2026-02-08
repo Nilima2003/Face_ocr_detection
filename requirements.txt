@@ -1,0 +1,12 @@
+opencv-python
+pillow
+numpy
+
+# OCR
+python-doctr[torch]
+
+# Face recognition
+face-recognition
+
+# Utilities
+tqdm
