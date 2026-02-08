@@ -1,46 +1,47 @@
-name: Build EXE
+# minimal-ocr-build.yml
+name: Minimal OCR Face Build
 
-on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
+on: [push, workflow_dispatch]
 
 jobs:
   build:
     runs-on: windows-latest
-
+    
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
-    - name: Setup Python
-      uses: actions/setup-python@v5
+    - uses: actions/checkout@v4
+    
+    - uses: actions/setup-python@v5
       with:
         python-version: "3.10"
-
-    - name: Upgrade pip and install dependencies
+        cache: 'pip'
+    
+    - name: Install Essentials
       run: |
-        python -m pip install --upgrade pip wheel setuptools
-        pip install face-recognition
-        pip install face-recognition-models
-        pip install -r requirements.txt
-        pip install pyinstaller
-
-    - name: Build EXE using CLI (alternative to spec)
+        choco install cmake -y
+        pip install --upgrade pip setuptools wheel
+        
+        # Minimal dependencies
+        pip install opencv-python numpy pandas pillow
+        pip install face-recognition dlib
+        pip install pytesseract easyocr
+        pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+        pip install pyqt5 pyinstaller
+    
+    - name: Build EXE
       shell: cmd
       run: |
         pyinstaller ^
          --onefile ^
          --noconsole ^
-         --name OCR_Face_Monitor ^
+         --name OCRApp ^
          --add-data "cameras.csv;." ^
          --hidden-import pkg_resources ^
-         --hidden-import setuptools ^
-         --collect-all face_recognition_models ^
+         --hidden-import cv2 ^
+         --hidden-import torch ^
+         --clean ^
          Main.py
-
-    - name: Upload EXE
-      uses: actions/upload-artifact@v4
+    
+    - uses: actions/upload-artifact@v4
       with:
-        name: OCR_Face_Monitor_EXE
-        path: dist/OCR_Face_Monitor.exe
+        name: OCR-App
+        path: dist/OCRApp.exe
